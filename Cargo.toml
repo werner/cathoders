@@ -1,0 +1,9 @@
+[package]
+name = "cathoders"
+version = "0.1.0"
+authors = ["Werner <werner_a_e@yahoo.es>"]
+
+[dependencies]
+stdweb = "0.4.7"
+regex = "1"
+wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen" }
