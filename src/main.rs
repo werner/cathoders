@@ -1,8 +1,6 @@
-#![feature(proc_macro, wasm_custom_section)]
-
 #[macro_use] extern crate stdweb;
 extern crate regex;
-extern crate wasm_bindgen;
+extern crate url;
 
 mod router;
 

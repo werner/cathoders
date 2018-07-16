@@ -2,8 +2,7 @@ use std::cmp;
 use regex::Regex;
 use stdweb::web::document;
 use stdweb::web::error::SecurityError;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::js;
+ use url::percent_encoding::percent_decode;
 
 #[derive(Debug)]
 pub struct Router<R> {
@@ -30,7 +29,7 @@ impl<R: cmp::PartialEq> Router<R> {
     pub fn get_fragment(&self) -> Result<String, SecurityError> {
         let re = Regex::new(r"\?(.*)$").unwrap();
         self.get_fragmented_url().map(|fragment| {
-            self.clear_slashes(&Self::decode_uri(&re.replace_all(&fragment, "").to_string()))
+            self.clear_slashes(&Self::decode(&re.replace_all(&fragment, "").to_string()))
         })
     }
 
@@ -44,15 +43,14 @@ impl<R: cmp::PartialEq> Router<R> {
         }
     }
 
-    #[wasm_bindgen]
-    pub fn decode_uri(uri: &str) -> String {
-        String::from(js::decode_uri(uri).ok().unwrap())
+    pub fn decode(uri: &str) -> String {
+        percent_decode(uri.as_bytes()).decode_utf8().unwrap().to_string()
     }
 
     fn clear_slashes(&self, path: &str) -> String {
-        let re1 = Regex::new(r"\/$").unwrap();
+        let re1 = Regex::new(r"\\/$").unwrap();
         let first_path = re1.replace_all(path, "").to_string();
-        let re2 = Regex::new(r"^\/").unwrap();
+        let re2 = Regex::new(r"^\\/").unwrap();
         re2.replace_all(&first_path, "").to_string()
     }
 }
