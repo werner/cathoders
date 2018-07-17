@@ -1,15 +1,16 @@
-use std::cmp;
+use std::{cmp, fmt};
+use regex;
 use regex::Regex;
 use stdweb::web::document;
 use stdweb::web::error::SecurityError;
- use url::percent_encoding::percent_decode;
+use url::percent_encoding::percent_decode;
 
 #[derive(Debug)]
 pub struct Router<R> {
     routes: Vec<R>
 }
 
-impl<R: cmp::PartialEq> Router<R> {
+impl<R: cmp::PartialEq + fmt::Display> Router<R> {
 
     pub fn new() -> Router<R> {
       Router{
@@ -17,8 +18,11 @@ impl<R: cmp::PartialEq> Router<R> {
       }
     }
 
-    pub fn add(&mut self, route: R) {
-        self.routes.push(route)
+    pub fn add(&mut self, route: R) -> Result<(), regex::Error> {
+        match self.route_as_regex(&route) {
+            Ok(_) => Ok(self.routes.push(route)),
+            Err(error) => Err(error)
+        }
     }
 
     pub fn remove(&mut self, route: R) {
@@ -33,6 +37,21 @@ impl<R: cmp::PartialEq> Router<R> {
         })
     }
 
+    pub fn check(&self, optFragment: Option<String>) -> Result<bool, SecurityError> {
+        self.get_fragment().map(|fragment| {
+            let fragment_to_comp = optFragment.unwrap_or(fragment);
+            self.routes.iter().any(|route| {
+                let re = self.route_as_regex(route);
+                // I'm making sure it's a valid regex when adding to routes
+                re.unwrap().is_match(&fragment_to_comp)
+            })
+        })
+    }
+
+    fn route_as_regex(&self, route: &R) -> Result<Regex, regex::Error> {
+        Regex::new(&format!(r"{}", regex::escape(&route.to_string())))
+    }
+
     fn get_fragmented_url(&self) -> Result<String, SecurityError> {
         if let Some(location) = document().location() {
             location.pathname().and_then(|pathname| {
@@ -43,7 +62,7 @@ impl<R: cmp::PartialEq> Router<R> {
         }
     }
 
-    pub fn decode(uri: &str) -> String {
+    fn decode(uri: &str) -> String {
         percent_decode(uri.as_bytes()).decode_utf8().unwrap().to_string()
     }
 
