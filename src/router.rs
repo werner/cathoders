@@ -1,7 +1,11 @@
 use std::{cmp, fmt};
 use regex;
 use regex::Regex;
+use stdweb::web::IEventTarget;
 use stdweb::web::document;
+use stdweb::web::window;
+use stdweb::JsSerialize;
+use stdweb::web::event::PopStateEvent;
 use stdweb::web::error::SecurityError;
 use url::percent_encoding::percent_decode;
 
@@ -10,7 +14,7 @@ pub struct Router<R> {
     routes: Vec<R>
 }
 
-impl<R: cmp::PartialEq + fmt::Display> Router<R> {
+impl<R: cmp::PartialEq + fmt::Display + JsSerialize> Router<R> {
 
     pub fn new() -> Router<R> {
       Router{
@@ -37,7 +41,17 @@ impl<R: cmp::PartialEq + fmt::Display> Router<R> {
         })
     }
 
-    pub fn check(&self, optFragment: Option<String>) -> Result<bool, SecurityError> {
+    pub fn listen(&'static self) {
+        window().add_event_listener( move |_: PopStateEvent| {
+            self.check(None);
+        });
+    }
+
+    pub fn navigate(&self, route: &R) {
+        window().history().push_state(route, &route.to_string(), Some(&self.clear_slashes(&route.to_string())))
+    }
+
+    fn check(&self, optFragment: Option<String>) -> Result<bool, SecurityError> {
         self.get_fragment().map(|fragment| {
             let fragment_to_comp = optFragment.unwrap_or(fragment);
             self.routes.iter().any(|route| {
