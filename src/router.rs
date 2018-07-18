@@ -1,4 +1,5 @@
-use std::{cmp, fmt};
+use std::{fmt};
+use std::cmp::PartialEq;
 use regex;
 use regex::Regex;
 use stdweb::web::IEventTarget;
@@ -9,28 +10,37 @@ use stdweb::web::event::PopStateEvent;
 use stdweb::web::error::SecurityError;
 use url::percent_encoding::percent_decode;
 
-#[derive(Debug)]
-pub struct Router<R> {
-    routes: Vec<R>
+trait Component { }
+
+#[derive(Debug, PartialEq)]
+struct Route<S, P> {
+    state: S,
+    path: P
 }
 
-impl<R: cmp::PartialEq + fmt::Display + JsSerialize> Router<R> {
+#[derive(Debug)]
+pub struct Router<S, P> {
+    routes: Vec<Route<S, P>>
+}
 
-    pub fn new() -> Router<R> {
+impl<S: JsSerialize, P: PartialEq + fmt::Display> Router<S, P> {
+
+    pub fn new() -> Router<S, P> {
       Router{
           routes: Vec::new()
       }
     }
 
-    pub fn add(&mut self, route: R) -> Result<(), regex::Error> {
+    pub fn add(&mut self, state: S, path: P) -> Result<(), regex::Error> {
+        let route = Route { state, path };
         match self.route_as_regex(&route) {
             Ok(_) => Ok(self.routes.push(route)),
             Err(error) => Err(error)
         }
     }
 
-    pub fn remove(&mut self, route: R) {
-        let index = self.routes.iter().position(|r| *r == route).unwrap();
+    pub fn remove(&mut self, path: P) {
+        let index = self.routes.iter().position(|r| r.path == path).unwrap();
         self.routes.remove(index);
     }
 
@@ -41,17 +51,13 @@ impl<R: cmp::PartialEq + fmt::Display + JsSerialize> Router<R> {
         })
     }
 
-    pub fn listen(&'static self) {
-        window().add_event_listener( move |_: PopStateEvent| {
-            self.check(None);
-        });
+    pub fn navigate(&self, state: S, path: P) {
+        window().history().push_state(state,
+                                      &path.to_string(),
+                                      Some(&self.clear_slashes(&path.to_string())))
     }
 
-    pub fn navigate(&self, route: &R) {
-        window().history().push_state(route, &route.to_string(), Some(&self.clear_slashes(&route.to_string())))
-    }
-
-    fn check(&self, optFragment: Option<String>) -> Result<bool, SecurityError> {
+    pub fn check(&self, optFragment: Option<String>) -> Result<bool, SecurityError> {
         self.get_fragment().map(|fragment| {
             let fragment_to_comp = optFragment.unwrap_or(fragment);
             self.routes.iter().any(|route| {
@@ -62,8 +68,8 @@ impl<R: cmp::PartialEq + fmt::Display + JsSerialize> Router<R> {
         })
     }
 
-    fn route_as_regex(&self, route: &R) -> Result<Regex, regex::Error> {
-        Regex::new(&format!(r"{}", regex::escape(&route.to_string())))
+    fn route_as_regex(&self, route: &Route<S, P>) -> Result<Regex, regex::Error> {
+        Regex::new(&format!(r"{}", regex::escape(&route.path.to_string())))
     }
 
     fn get_fragmented_url(&self) -> Result<String, SecurityError> {
